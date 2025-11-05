@@ -59,15 +59,61 @@ class OpenEvaluator(BaseEvaluator):
             model_output_text = "[See model output image]"
         else:
             model_output_text = model_output
-        # 评分准则
+
+        # ========== 评分准则 v1 (已废弃，保留作为参考) ==========
+        # prompt_lines_v1 = [
+        #     "You are an expert evaluator. Given the following question, reference answer, and model answer, please rate the model answer on a scale of 0 to 1, and explain your reasoning.",
+        #     "Scoring rules:",
+        #     "- If the reference answer is an image but the model output does not contain an image, score 0.",
+        #     "- If the reference answer is text but the model output does not contain text, score 0.",
+        #     "- Otherwise, score based on the similarity and correctness of the model output compared to the reference answer.",
+        #     "- If both text and image are present, consider both in your evaluation.",
+        #     "Please output your score in the format: \\score{X}, where X is a number between 0 and 1.",
+        #     "",
+        #     f"Question: {question}",
+        # ]
+
+        # ========== 评分准则 v2 (当前版本) ==========
         prompt_lines = [
             "You are an expert evaluator. Given the following question, reference answer, and model answer, please rate the model answer on a scale of 0 to 1, and explain your reasoning.",
-            "Scoring rules:",
-            "- If the reference answer is an image but the model output does not contain an image, score 0.",
-            "- If the reference answer is text but the model output does not contain text, score 0.",
-            "- Otherwise, score based on the similarity and correctness of the model output compared to the reference answer.",
-            "- If both text and image are present, consider both in your evaluation.",
-            "Please output your score in the format: \\score{X}, where X is a number between 0 and 1.",
+            "",
+            "Scoring Rules:",
+            "",
+            "1. Modal Flexibility & Constraints:",
+            "   - Text descriptions of image content are VALID and should be evaluated based on accuracy",
+            "   - HOWEVER: If reference is an image and model output is text, maximum score is 0.8",
+            "   - If reference is text and model output is text, maximum score is 1.0",
+            "   - Modal mismatch penalty: -0.2 from the maximum achievable score",
+            "",
+            "2. Scoring Scale (use 0.1 increments):",
+            "   - 0.0: Completely incorrect, irrelevant, or fails to address the question",
+            "   - 0.1-0.2: Mostly incorrect with minimal relevant content",
+            "   - 0.3-0.4: Partially correct but with significant errors or omissions",
+            "   - 0.5-0.6: Moderately correct but missing important information",
+            "   - 0.7-0.8: Mostly correct with minor errors or incomplete details",
+            "   - 0.9-1.0: Excellent to perfect (1.0 reserved for flawless answers with matching modality)",
+            "",
+            "3. Strict Evaluation Criteria (prioritize final results over process):",
+            "   - Correctness (60%): Is the FINAL ANSWER factually accurate? Focus on results, not reasoning process",
+            "   - Completeness (25%): Does it cover all KEY aspects of the reference answer?",
+            "   - Relevance (15%): Does it directly address the question?",
+            "   - IMPORTANT: Long reasoning or explanations do NOT automatically earn higher scores",
+            "   - IMPORTANT: Evaluate the FINAL RESULT, not the amount of text or reasoning steps",
+            "",
+            "4. Scoring Guidelines:",
+            "   - Be STRICT: Only award high scores (0.7+) for genuinely accurate and complete answers",
+            "   - Penalize incorrect final answers heavily, even if reasoning seems plausible",
+            "   - Do NOT give 'process points' for verbose explanations if the answer is wrong",
+            "   - Prefer discrete scores: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0",
+            "   - Avoid intermediate values like 0.45 or 0.65 unless absolutely necessary",
+            "",
+            "5. Special Cases:",
+            "   - Perfect text description of image content: 0.7-0.8 (capped due to modal mismatch)",
+            "   - Good but incomplete text description: 0.4-0.6",
+            "   - Partially correct with errors: 0.2-0.4",
+            "   - Wrong answer with good reasoning: 0.0-0.2 (reasoning doesn't compensate for wrong answer)",
+            "",
+            "Please output your score in the format: \\score{X}, where X is between 0.0 and 1.0 (one decimal place).",
             "",
             f"Question: {question}",
         ]
@@ -123,7 +169,14 @@ class OpenEvaluator(BaseEvaluator):
         return 0.0
 
     def _calculate_accuracy(self, answer: Any, prediction: float, item: Dict) -> bool:
-        return prediction >= 0.5
+        """
+        对于 OpenEvaluator，我们不再使用二分类逻辑（>=0.5 判断 pass/fail）
+        而是直接返回分数本身作为 'pass' 字段，用于后续平均分计算
+        为了保持兼容性，这里返回 True（表示有效评分），实际分数存储在 prediction 中
+        """
+        # 注意：这里返回 True 只是为了兼容 BaseEvaluator 的框架
+        # 实际的分数会在 evaluate 方法中直接保存到 item_result
+        return True
 
     def evaluate(
         self,
@@ -163,9 +216,8 @@ class OpenEvaluator(BaseEvaluator):
             item_result[self.prediction_key] = score
             item_result["model_output"] = model_output
             item_result["score_response"] = score_response
-            item_result["pass"] = self._calculate_accuracy(
-                item.get("answer", ""), score, item
-            )
+            # 对于 OpenEvaluator，直接将分数保存到 pass 字段，用于后续平均分计算
+            item_result["pass"] = score  # 直接使用分数而非布尔值
             results.append(item_result)
         # 4. 保存和统计
         saved_files = self._save_results(results, save_path)

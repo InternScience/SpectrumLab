@@ -291,6 +291,7 @@ class BaseEvaluator(ABC):
         total = len(processed_items)
         correct = 0
         no_prediction = 0
+        total_score = 0.0  # 用于计算平均分
 
         # Category and subcategory metrics
         category_stats = {}
@@ -309,40 +310,84 @@ class BaseEvaluator(ABC):
                 no_prediction += 1
 
             # Use the pre-calculated "pass" field
-            is_correct = item.get("pass", False)
-            if is_correct:
-                correct += 1
+            # 兼容两种模式：
+            # 1. 布尔值（ChoiceEvaluator）：True/False
+            # 2. 浮点数（OpenEvaluator v2）：0.0-1.0 的分数
+            pass_value = item.get("pass", False)
+
+            if isinstance(pass_value, bool):
+                # 传统的二分类模式（ChoiceEvaluator）
+                is_correct = pass_value
+                if is_correct:
+                    correct += 1
+                    total_score += 1.0
+            elif isinstance(pass_value, (int, float)):
+                # 新的评分模式（OpenEvaluator v2）
+                score = float(pass_value)
+                total_score += score
+                # 为了兼容性，>=0.5 算作 correct（用于显示）
+                is_correct = score >= 0.5
+                if is_correct:
+                    correct += 1
+            else:
+                is_correct = False
 
             # Update category stats
             if category not in category_stats:
-                category_stats[category] = {"correct": 0, "total": 0}
+                category_stats[category] = {
+                    "correct": 0,
+                    "total": 0,
+                    "total_score": 0.0,
+                }
             category_stats[category]["total"] += 1
             if is_correct:
                 category_stats[category]["correct"] += 1
+            # 累加分数（用于平均分计算）
+            if isinstance(pass_value, (int, float)):
+                category_stats[category]["total_score"] += float(pass_value)
+            elif pass_value:
+                category_stats[category]["total_score"] += 1.0
 
             # Update subcategory stats
             if sub_category not in subcategory_stats:
-                subcategory_stats[sub_category] = {"correct": 0, "total": 0}
+                subcategory_stats[sub_category] = {
+                    "correct": 0,
+                    "total": 0,
+                    "total_score": 0.0,
+                }
             subcategory_stats[sub_category]["total"] += 1
             if is_correct:
                 subcategory_stats[sub_category]["correct"] += 1
+            # 累加分数（用于平均分计算）
+            if isinstance(pass_value, (int, float)):
+                subcategory_stats[sub_category]["total_score"] += float(pass_value)
+            elif pass_value:
+                subcategory_stats[sub_category]["total_score"] += 1.0
 
-        # Calculate percentages
+        # Calculate percentages and average scores
         overall_accuracy = (correct / total * 100) if total > 0 else 0
+        overall_avg_score = (total_score / total) if total > 0 else 0.0
 
         for stats in category_stats.values():
             stats["accuracy"] = (
                 (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
+            )
+            stats["avg_score"] = (
+                (stats["total_score"] / stats["total"]) if stats["total"] > 0 else 0.0
             )
 
         for stats in subcategory_stats.values():
             stats["accuracy"] = (
                 (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
             )
+            stats["avg_score"] = (
+                (stats["total_score"] / stats["total"]) if stats["total"] > 0 else 0.0
+            )
 
         return {
             "overall": {
                 "accuracy": overall_accuracy,
+                "avg_score": overall_avg_score,  # 新增：平均分
                 "correct": correct,
                 "total": total,
                 "no_prediction_count": no_prediction,
@@ -360,28 +405,43 @@ class BaseEvaluator(ABC):
         print("EVALUATION RESULTS")
         print("=" * 60)
 
-        # Overall accuracy
+        # Overall accuracy and average score
         if "overall" in metrics:
             overall = metrics["overall"]
             print(
                 f"Overall Accuracy: {overall['accuracy']:.2f}% ({overall['correct']}/{overall['total']})"
             )
+            # 显示平均分（如果存在）
+            if "avg_score" in overall:
+                print(f"Overall Average Score: {overall['avg_score']:.3f}")
 
-        # Category-wise accuracy
+        # Category-wise accuracy and average score
         if "category_metrics" in metrics:
-            print("\nCategory-wise Accuracy:")
+            print("\nCategory-wise Metrics:")
             for category, stats in metrics["category_metrics"].items():
-                print(
-                    f"  {category}: {stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
+                accuracy_str = (
+                    f"{stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
                 )
+                if "avg_score" in stats:
+                    print(
+                        f"  {category}: {accuracy_str}, Avg Score: {stats['avg_score']:.3f}"
+                    )
+                else:
+                    print(f"  {category}: {accuracy_str}")
 
-        # Sub-category-wise accuracy
+        # Sub-category-wise accuracy and average score
         if "subcategory_metrics" in metrics:
-            print("\nSub-category-wise Accuracy:")
+            print("\nSub-category-wise Metrics:")
             for subcat, stats in metrics["subcategory_metrics"].items():
-                print(
-                    f"  {subcat}: {stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
+                accuracy_str = (
+                    f"{stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
                 )
+                if "avg_score" in stats:
+                    print(
+                        f"  {subcat}: {accuracy_str}, Avg Score: {stats['avg_score']:.3f}"
+                    )
+                else:
+                    print(f"  {subcat}: {accuracy_str}")
 
         if "overall" in metrics and metrics["overall"]["no_prediction_count"] > 0:
             print(
