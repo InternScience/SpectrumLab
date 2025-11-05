@@ -289,9 +289,19 @@ class BaseEvaluator(ABC):
 
         # Overall metrics
         total = len(processed_items)
-        correct = 0
         no_prediction = 0
-        total_score = 0.0  # 用于计算平均分
+        total_score = 0.0
+
+        # Detect evaluation mode based on first item's pass field type
+        # - Scoring mode (OpenEvaluator): pass is float (0.0-1.0)
+        # - Classification mode (ChoiceEvaluator): pass is bool (True/False)
+        first_pass_value = processed_items[0].get("pass", False)
+        use_scoring_mode = isinstance(
+            first_pass_value, (int, float)
+        ) and not isinstance(first_pass_value, bool)
+
+        # Only used in classification mode
+        correct = 0
 
         # Category and subcategory metrics
         category_stats = {}
@@ -303,95 +313,94 @@ class BaseEvaluator(ABC):
             sub_category = item.get("sub_category", "Unknown")
 
             # Check if prediction exists
-            # 兼容 prediction 可能为 float（如 OpenEvaluator），也可能为 str（如 ChoiceEvaluator）
             if prediction is None or (
                 isinstance(prediction, str) and prediction.strip() == ""
             ):
                 no_prediction += 1
 
-            # Use the pre-calculated "pass" field
-            # 兼容两种模式：
-            # 1. 布尔值（ChoiceEvaluator）：True/False
-            # 2. 浮点数（OpenEvaluator v2）：0.0-1.0 的分数
             pass_value = item.get("pass", False)
 
-            if isinstance(pass_value, bool):
-                # 传统的二分类模式（ChoiceEvaluator）
-                is_correct = pass_value
+            if use_scoring_mode:
+                # Scoring mode (OpenEvaluator): use score directly
+                score = float(pass_value)
+                total_score += score
+            else:
+                # Classification mode (ChoiceEvaluator): use boolean
+                is_correct = bool(pass_value)
                 if is_correct:
                     correct += 1
                     total_score += 1.0
-            elif isinstance(pass_value, (int, float)):
-                # 新的评分模式（OpenEvaluator v2）
-                score = float(pass_value)
-                total_score += score
-                # 为了兼容性，>=0.5 算作 correct（用于显示）
-                is_correct = score >= 0.5
-                if is_correct:
-                    correct += 1
-            else:
-                is_correct = False
 
             # Update category stats
             if category not in category_stats:
-                category_stats[category] = {
-                    "correct": 0,
-                    "total": 0,
-                    "total_score": 0.0,
-                }
+                category_stats[category] = {"total": 0, "total_score": 0.0}
+                if not use_scoring_mode:
+                    category_stats[category]["correct"] = 0
+
             category_stats[category]["total"] += 1
-            if is_correct:
+            category_stats[category]["total_score"] += (
+                float(pass_value) if use_scoring_mode else (1.0 if pass_value else 0.0)
+            )
+
+            if not use_scoring_mode and pass_value:
                 category_stats[category]["correct"] += 1
-            # 累加分数（用于平均分计算）
-            if isinstance(pass_value, (int, float)):
-                category_stats[category]["total_score"] += float(pass_value)
-            elif pass_value:
-                category_stats[category]["total_score"] += 1.0
 
             # Update subcategory stats
             if sub_category not in subcategory_stats:
-                subcategory_stats[sub_category] = {
-                    "correct": 0,
-                    "total": 0,
-                    "total_score": 0.0,
-                }
-            subcategory_stats[sub_category]["total"] += 1
-            if is_correct:
-                subcategory_stats[sub_category]["correct"] += 1
-            # 累加分数（用于平均分计算）
-            if isinstance(pass_value, (int, float)):
-                subcategory_stats[sub_category]["total_score"] += float(pass_value)
-            elif pass_value:
-                subcategory_stats[sub_category]["total_score"] += 1.0
+                subcategory_stats[sub_category] = {"total": 0, "total_score": 0.0}
+                if not use_scoring_mode:
+                    subcategory_stats[sub_category]["correct"] = 0
 
-        # Calculate percentages and average scores
-        overall_accuracy = (correct / total * 100) if total > 0 else 0
+            subcategory_stats[sub_category]["total"] += 1
+            subcategory_stats[sub_category]["total_score"] += (
+                float(pass_value) if use_scoring_mode else (1.0 if pass_value else 0.0)
+            )
+
+            if not use_scoring_mode and pass_value:
+                subcategory_stats[sub_category]["correct"] += 1
+
+        # Calculate overall metrics
         overall_avg_score = (total_score / total) if total > 0 else 0.0
 
-        for stats in category_stats.values():
-            stats["accuracy"] = (
-                (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
-            )
-            stats["avg_score"] = (
-                (stats["total_score"] / stats["total"]) if stats["total"] > 0 else 0.0
-            )
+        # Build overall metrics based on mode
+        overall_metrics = {
+            "avg_score": overall_avg_score,
+            "total": total,
+            "no_prediction_count": no_prediction,
+        }
 
-        for stats in subcategory_stats.values():
-            stats["accuracy"] = (
-                (stats["correct"] / stats["total"] * 100) if stats["total"] > 0 else 0
-            )
+        # Only include accuracy/correct for classification mode
+        if not use_scoring_mode:
+            overall_accuracy = (correct / total * 100) if total > 0 else 0
+            overall_metrics["accuracy"] = overall_accuracy
+            overall_metrics["correct"] = correct
+
+        # Calculate category metrics
+        for stats in category_stats.values():
             stats["avg_score"] = (
                 (stats["total_score"] / stats["total"]) if stats["total"] > 0 else 0.0
             )
+            if not use_scoring_mode:
+                stats["accuracy"] = (
+                    (stats["correct"] / stats["total"] * 100)
+                    if stats["total"] > 0
+                    else 0
+                )
+
+        # Calculate subcategory metrics
+        for stats in subcategory_stats.values():
+            stats["avg_score"] = (
+                (stats["total_score"] / stats["total"]) if stats["total"] > 0 else 0.0
+            )
+            if not use_scoring_mode:
+                stats["accuracy"] = (
+                    (stats["correct"] / stats["total"] * 100)
+                    if stats["total"] > 0
+                    else 0
+                )
 
         return {
-            "overall": {
-                "accuracy": overall_accuracy,
-                "avg_score": overall_avg_score,  # 新增：平均分
-                "correct": correct,
-                "total": total,
-                "no_prediction_count": no_prediction,
-            },
+            "overall": overall_metrics,
             "category_metrics": category_stats,
             "subcategory_metrics": subcategory_stats,
         }
@@ -405,43 +414,51 @@ class BaseEvaluator(ABC):
         print("EVALUATION RESULTS")
         print("=" * 60)
 
-        # Overall accuracy and average score
+        # Overall metrics - prioritize avg_score display
         if "overall" in metrics:
             overall = metrics["overall"]
-            print(
-                f"Overall Accuracy: {overall['accuracy']:.2f}% ({overall['correct']}/{overall['total']})"
-            )
-            # 显示平均分（如果存在）
-            if "avg_score" in overall:
-                print(f"Overall Average Score: {overall['avg_score']:.3f}")
 
-        # Category-wise accuracy and average score
+            # Display avg_score first (for Generation/Scoring mode)
+            if "avg_score" in overall:
+                print(
+                    f"Overall Average Score: {overall['avg_score']:.3f} (Total: {overall['total']})"
+                )
+
+            # Display accuracy if available (for Classification mode)
+            if "accuracy" in overall and "correct" in overall:
+                print(
+                    f"Overall Accuracy: {overall['accuracy']:.2f}% ({overall['correct']}/{overall['total']})"
+                )
+
+        # Category-wise metrics - prioritize avg_score display
         if "category_metrics" in metrics:
             print("\nCategory-wise Metrics:")
             for category, stats in metrics["category_metrics"].items():
-                accuracy_str = (
-                    f"{stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
-                )
+                # Prioritize avg_score display
                 if "avg_score" in stats:
-                    print(
-                        f"  {category}: {accuracy_str}, Avg Score: {stats['avg_score']:.3f}"
-                    )
-                else:
-                    print(f"  {category}: {accuracy_str}")
+                    score_str = f"Avg Score: {stats['avg_score']:.3f}"
+                    if "accuracy" in stats and "correct" in stats:
+                        # Show both for classification mode
+                        accuracy_str = f"{stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
+                        print(f"  {category}: {accuracy_str}, {score_str}")
+                    else:
+                        # Show only score for scoring mode
+                        print(f"  {category}: {score_str} ({stats['total']} items)")
 
-        # Sub-category-wise accuracy and average score
+        # Sub-category-wise metrics - prioritize avg_score display
         if "subcategory_metrics" in metrics:
             print("\nSub-category-wise Metrics:")
             for subcat, stats in metrics["subcategory_metrics"].items():
-                accuracy_str = (
-                    f"{stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
-                )
+                # Prioritize avg_score display
                 if "avg_score" in stats:
-                    print(
-                        f"  {subcat}: {accuracy_str}, Avg Score: {stats['avg_score']:.3f}"
-                    )
-                else:
-                    print(f"  {subcat}: {accuracy_str}")
+                    score_str = f"Avg Score: {stats['avg_score']:.3f}"
+                    if "accuracy" in stats and "correct" in stats:
+                        # Show both for classification mode
+                        accuracy_str = f"{stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
+                        print(f"  {subcat}: {accuracy_str}, {score_str}")
+                    else:
+                        # Show only score for scoring mode
+                        print(f"  {subcat}: {score_str} ({stats['total']} items)")
 
         if "overall" in metrics and metrics["overall"]["no_prediction_count"] > 0:
             print(

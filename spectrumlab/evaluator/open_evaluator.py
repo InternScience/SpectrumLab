@@ -170,12 +170,10 @@ class OpenEvaluator(BaseEvaluator):
 
     def _calculate_accuracy(self, answer: Any, prediction: float, item: Dict) -> bool:
         """
-        对于 OpenEvaluator，我们不再使用二分类逻辑（>=0.5 判断 pass/fail）
-        而是直接返回分数本身作为 'pass' 字段，用于后续平均分计算
-        为了保持兼容性，这里返回 True（表示有效评分），实际分数存储在 prediction 中
+        For OpenEvaluator, we use scoring mode instead of binary classification.
+        This method returns True for framework compatibility only.
+        The actual score (0.0-1.0) is stored directly in the 'pass' field.
         """
-        # 注意：这里返回 True 只是为了兼容 BaseEvaluator 的框架
-        # 实际的分数会在 evaluate 方法中直接保存到 item_result
         return True
 
     def evaluate(
@@ -216,8 +214,8 @@ class OpenEvaluator(BaseEvaluator):
             item_result[self.prediction_key] = score
             item_result["model_output"] = model_output
             item_result["score_response"] = score_response
-            # 对于 OpenEvaluator，直接将分数保存到 pass 字段，用于后续平均分计算
-            item_result["pass"] = score  # 直接使用分数而非布尔值
+            # Store score (0.0-1.0) directly in 'pass' field for avg_score calculation
+            item_result["pass"] = score
             results.append(item_result)
         # 4. 保存和统计
         saved_files = self._save_results(results, save_path)
