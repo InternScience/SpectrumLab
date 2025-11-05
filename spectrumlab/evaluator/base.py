@@ -292,13 +292,24 @@ class BaseEvaluator(ABC):
         no_prediction = 0
         total_score = 0.0
 
-        # Detect evaluation mode based on first item's pass field type
+        # Detect evaluation mode based on pass field type
         # - Scoring mode (OpenEvaluator): pass is float (0.0-1.0)
         # - Classification mode (ChoiceEvaluator): pass is bool (True/False)
-        first_pass_value = processed_items[0].get("pass", False)
-        use_scoring_mode = isinstance(
-            first_pass_value, (int, float)
-        ) and not isinstance(first_pass_value, bool)
+        # Check multiple items to ensure consistent mode detection
+        use_scoring_mode = False
+        for item in processed_items[
+            : min(3, len(processed_items))
+        ]:  # Check up to 3 items
+            pass_value = item.get("pass")
+            if pass_value is not None:
+                if isinstance(pass_value, (int, float)) and not isinstance(
+                    pass_value, bool
+                ):
+                    use_scoring_mode = True
+                    break
+                elif isinstance(pass_value, bool):
+                    use_scoring_mode = False
+                    break
 
         # Only used in classification mode
         correct = 0
@@ -322,8 +333,13 @@ class BaseEvaluator(ABC):
 
             if use_scoring_mode:
                 # Scoring mode (OpenEvaluator): use score directly
-                score = float(pass_value)
-                total_score += score
+                try:
+                    score = float(pass_value)
+                    total_score += score
+                except (ValueError, TypeError):
+                    # If pass_value is not a valid number, treat as 0.0
+                    score = 0.0
+                    total_score += score
             else:
                 # Classification mode (ChoiceEvaluator): use boolean
                 is_correct = bool(pass_value)
@@ -338,9 +354,17 @@ class BaseEvaluator(ABC):
                     category_stats[category]["correct"] = 0
 
             category_stats[category]["total"] += 1
-            category_stats[category]["total_score"] += (
-                float(pass_value) if use_scoring_mode else (1.0 if pass_value else 0.0)
-            )
+            # Safe score calculation with error handling
+            try:
+                if use_scoring_mode:
+                    category_stats[category]["total_score"] += float(pass_value)
+                else:
+                    category_stats[category]["total_score"] += (
+                        1.0 if pass_value else 0.0
+                    )
+            except (ValueError, TypeError):
+                # If conversion fails, add 0.0
+                category_stats[category]["total_score"] += 0.0
 
             if not use_scoring_mode and pass_value:
                 category_stats[category]["correct"] += 1
@@ -352,9 +376,17 @@ class BaseEvaluator(ABC):
                     subcategory_stats[sub_category]["correct"] = 0
 
             subcategory_stats[sub_category]["total"] += 1
-            subcategory_stats[sub_category]["total_score"] += (
-                float(pass_value) if use_scoring_mode else (1.0 if pass_value else 0.0)
-            )
+            # Safe score calculation with error handling
+            try:
+                if use_scoring_mode:
+                    subcategory_stats[sub_category]["total_score"] += float(pass_value)
+                else:
+                    subcategory_stats[sub_category]["total_score"] += (
+                        1.0 if pass_value else 0.0
+                    )
+            except (ValueError, TypeError):
+                # If conversion fails, add 0.0
+                subcategory_stats[sub_category]["total_score"] += 0.0
 
             if not use_scoring_mode and pass_value:
                 subcategory_stats[sub_category]["correct"] += 1

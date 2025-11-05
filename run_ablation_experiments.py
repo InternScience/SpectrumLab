@@ -103,9 +103,25 @@ for config in ABLATION_CONFIGS:
         results = evaluator.evaluate(
             data_items=data, model=wrapped_model, save_path=config["save_dir"]
         )
-        accuracy = results["metrics"]["overall"]["accuracy"]
-        print(f"{name} Group evaluation completed! Overall accuracy: {accuracy:.2f}%\n")
-        swanlab.log({f"{name}_accuracy": accuracy})
+
+        # Handle both scoring mode (avg_score) and classification mode (accuracy)
+        overall_metrics = results["metrics"]["overall"]
+        if "avg_score" in overall_metrics:
+            # Generation/Scoring mode - use average score
+            avg_score = overall_metrics["avg_score"]
+            print(
+                f"{name} Group evaluation completed! Overall average score: {avg_score:.3f}\n"
+            )
+            swanlab.log({f"{name}_avg_score": avg_score})
+        elif "accuracy" in overall_metrics:
+            # Classification mode - use accuracy
+            accuracy = overall_metrics["accuracy"]
+            print(
+                f"{name} Group evaluation completed! Overall accuracy: {accuracy:.2f}%\n"
+            )
+            swanlab.log({f"{name}_accuracy": accuracy})
+        else:
+            print(f"{name} Group evaluation completed! No metrics available.\n")
 
     swanlab.finish()
     print(f"\n消融实验 {config['model_name']} 完成!")
