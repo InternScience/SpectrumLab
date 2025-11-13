@@ -26,6 +26,16 @@ class Config:
     internvl_base_url: str = os.getenv("INTERNVL_BASE_URL")
     internvl_model_name: str = os.getenv("INTERNVL_MODEL_NAME")
 
+    # Intern-S1 API Configuration
+    intern_s1_api_key: str = os.getenv("INTERN_S1_API_KEY")
+    intern_s1_base_url: str = os.getenv("INTERN_S1_BASE_URL")
+    intern_s1_model_name: str = os.getenv("INTERN_S1_MODEL_NAME")
+
+    # Intern-S1-Mini API Configuration
+    intern_s1_mini_api_key: str = os.getenv("INTERN_S1_MINI_API_KEY")
+    intern_s1_mini_base_url: str = os.getenv("INTERN_S1_MINI_BASE_URL")
+    intern_s1_mini_model_name: str = os.getenv("INTERN_S1_MINI_MODEL_NAME")
+
     # Claude API Configuration
     claude_api_key: str = os.getenv("CLAUDE_API_KEY")
     claude_base_url: str = os.getenv("CLAUDE_BASE_URL")

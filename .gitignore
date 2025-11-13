@@ -20,3 +20,5 @@ swanlog/
 log
 
 .env
+
+*.log

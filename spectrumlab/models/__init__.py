@@ -1,6 +1,7 @@
 from .deepseek_api import DeepSeek
 from .gpt4o_api import GPT4o
 from .internvl_api import InternVL
+from .intern_s1 import Intern_S1, Intern_S1_Mini
 from .claude_api import (
     Claude_Sonnet_3_5,
     Claude_Opus_4,
@@ -18,6 +19,8 @@ __all__ = [
     "DeepSeek",
     "GPT4o",
     "InternVL",
+    "Intern_S1",
+    "Intern_S1_Mini",
     "Claude_Sonnet_3_5",
     "Claude_Opus_4",
     "Claude_Haiku_3_5",
