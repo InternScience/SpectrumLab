@@ -100,14 +100,22 @@ We welcome community contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md
 If you use SpectrumLab in your research, please cite our paper:
 
 ```bibtex
-@article{yang2025spectrumworldartificialintelligencefoundation,
-      title={SpectrumWorld: Artificial Intelligence Foundation for Spectroscopy}, 
-      author={Zhuo Yang and Jiaqing Xie and Shuaike Shen and Daolang Wang and Yeyun Chen and Ben Gao and Shuzhou Sun and Biqing Qi and Dongzhan Zhou and Lei Bai and Linjiang Chen and Shufei Zhang and Qinying Gu and Jun Jiang and Tianfan Fu and Yuqiang Li},
-      year={2025},
-      eprint={2508.01188},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2508.01188}, 
+@inproceedings{10.1145/3770855.3818936,
+author = {Yang, Zhuo and Xie, Jiaqing and Shen, Shuaike and Wang, Daolang and Chen, Yeyun and Gao, Ben and Sun, Shuzhou and Qi, Biqing and Zhou, Dongzhan and BAI, LEI and Chen, Linjiang and Zhang, Shufei and Gu, Qinying and Jiang, Jun and Fu, Tianfan and Li, Yuqiang},
+title = {SpectrumWorld: Artificial Intelligence Foundation for Spectroscopy},
+year = {2026},
+isbn = {9798400722592},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3770855.3818936},
+doi = {10.1145/3770855.3818936},
+abstract = {Deep learning holds immense promise for spectroscopy, yet research and evaluation in this emerging field often lack standardized formulations. To address this issue, we introduce SpectrumWorld, a unified infrastructure for AI-driven spectroscopy. SpectrumWorld consists of SpectrumLab, a pioneering unified platform designed to systematize and accelerate deep learning research in spectroscopy; SpectrumAnnotator, an annotation and curation module that generates high-quality benchmarks from limited seed data; and SpectrumVQA, a multi-layered benchmark suite covering 14 spectroscopic tasks and over 10 spectrum types, featuring spectra curated from over 1.2 million distinct chemical substances. Thorough empirical studies on SpectrumVQA with 23 cutting-edge multimodal LLMs reveal critical limitations of current approaches. We hope SpectrumWorld will serve as a crucial foundation for future advancements in deep learning-driven spectroscopy. Code is released at https://github.com/InternScience/SpectrumLab.},
+booktitle = {Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2},
+pages = {12655–12666},
+numpages = {12},
+keywords = {spectroscopy, deep learning, benchmark, multimodal large language models},
+location = {Republic of Korea},
+series = {KDD '26}
 }
 ```
 
